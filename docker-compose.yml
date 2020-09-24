@@ -1,0 +1,15 @@
+version: '3'
+services:
+  golang:
+    build: ./
+    volumes:
+      - .:/go/src/go-comic-spider
+    container_name: golang
+    links:
+      - mongodb
+  mongodb:
+    restart: always
+    image: mongo:latest
+    container_name: mongo
+    ports:
+      - 27017:27017
