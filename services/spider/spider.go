@@ -15,6 +15,8 @@ import (
 
 func getImages(u string) []string {
 	optionList := []string{
+		"start-maximized",
+		"enable-automation",
 		"--headless",
 		"--window-size=1000,900",
 		"--incognito", //隐身模式
@@ -24,14 +26,25 @@ func getImages(u string) []string {
 		"--ssl-protocol=any",
 		"--no-sandbox",
 		"--disable-breakpad",
-		"--disable-gpu",
 		"--disable-logging",
 		"--no-zygote",
 		"--allow-running-insecure-content",
 		"--disable-extensions",
 		"--disable-infobars",
+		"--disable-dev-shm-usage",
+		"--disable-cache",
+		"--disable-application-cache",
+		"--disable-offline-load-stale-cache",
+		"--disk-cache-size=0",
+		"--disable-gpu",
+		"--dns-prefetch-disable",
+		"--no-proxy-server",
+		"--silent",
+		"--disable-browser-side-navigation",
 	}
 	driver := agouti.ChromeDriver(agouti.ChromeOptions("args", optionList))
+	driver.Debug = true
+	driver.Timeout = 600 * time.Second
 	if err := driver.Start(); err != nil {
 		log.Fatal("Failed to start driver:", err)
 	}
@@ -104,7 +117,7 @@ func Detector(u string) {
 	channel := make(chan episode.Episode, 10)
 	var wg sync.WaitGroup
 
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 1; i++ {
 		go func() {
 		Test:
 			for {
