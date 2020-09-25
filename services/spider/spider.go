@@ -125,7 +125,7 @@ func Detector(u string) {
 				select {
 				case e, isContinue := <-channel:
 					if !isContinue {
-						goto Test
+						break Test
 					}
 					var images []string
 					result := true
@@ -138,12 +138,8 @@ func Detector(u string) {
 					}
 					e.Images = images
 					e.Create()
-
-				default:
-					goto Test
 				}
 			}
-
 		}()
 	}
 
