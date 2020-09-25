@@ -39,6 +39,25 @@ func Create() Topic {
 	return topic
 
 }
+func Create2() Topic {
+	//凤逆天下  风起苍岚
+	//https://www.ohmanhua.com/10183/  https://www.ohmanhua.com/10182/
+	topic := Topic{
+		WebId: host.FindByCode().Id,
+		Title: "凤逆天下",
+		Url:   "https://www.ohmanhua.com/10183/",
+	}
+	insert, err := getCollection().InsertOne(nil, topic)
+	if err != nil {
+		log.Fatalf("topic insert fail err: %s", err)
+	}
+	id, ok := insert.InsertedID.(primitive.ObjectID)
+	if !ok {
+		fmt.Println(ok)
+	}
+	topic.Id = id
+	return topic
+}
 
 func getCollection() *mongo.Collection {
 	return db.NewDB().Collection(CollectName)

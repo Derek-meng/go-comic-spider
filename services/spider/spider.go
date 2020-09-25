@@ -13,7 +13,8 @@ import (
 	"time"
 )
 
-func getImages(u string) []string {
+func getImages(u string, t int) ([]string, int) {
+	t++
 	optionList := []string{
 		"start-maximized",
 		"enable-automation",
@@ -54,8 +55,7 @@ func getImages(u string) []string {
 	}
 	defer page.CloseWindow()
 	if err := page.Navigate(u); err != nil {
-		fmt.Println(u)
-		log.Fatal("Failed to navigate:", err)
+		return []string{}, t
 	}
 	time.Sleep(100 * time.Millisecond)
 	pageClass := page.FindByID("mangalist")
@@ -81,7 +81,7 @@ func getImages(u string) []string {
 		images = append(images, attribute)
 		i++
 	}
-	return images
+	return images, t
 }
 
 func Detector(u string) {
@@ -116,20 +116,34 @@ func Detector(u string) {
 	})
 	channel := make(chan episode.Episode, 10)
 	var wg sync.WaitGroup
-
-	for i := 0; i < 1; i++ {
+	wg.Add(10)
+	for i := 0; i < 10; i++ {
 		go func() {
+			defer wg.Done()
 		Test:
 			for {
 				select {
-				case e := <-channel:
-					e.Images = getImages(e.Url)
+				case e, isContinue := <-channel:
+					if !isContinue {
+						goto Test
+					}
+					var images []string
+					result := true
+					for result {
+						var i int
+						images, i = getImages(e.Url, 1)
+						if len(images) >= 0 || i > 3 {
+							result = false
+						}
+					}
+					e.Images = images
 					e.Create()
-					wg.Done()
+
 				default:
 					goto Test
 				}
 			}
+
 		}()
 	}
 
@@ -137,7 +151,6 @@ func Detector(u string) {
 		if ep.IsExistsByNameAndURL() {
 			break
 		} else {
-			wg.Add(1)
 			channel <- ep
 		}
 	}
