@@ -1,6 +1,7 @@
 package topic
 
 import (
+	"context"
 	"fmt"
 	"github.com/Derek-meng/go-comic-spider/client/db"
 	"github.com/Derek-meng/go-comic-spider/repostories/host"
@@ -8,6 +9,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"log"
+	"time"
 )
 
 const OhComicCode = "OH_COMIC"
@@ -59,8 +61,13 @@ func Create2() Topic {
 	return topic
 }
 
+var cancel context.CancelFunc
+var ctx context.Context
+
 func getCollection() *mongo.Collection {
-	return db.NewDB().Collection(CollectName)
+
+	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+	return db.NewDB(ctx).Collection(CollectName)
 }
 
 func FindByName(name string) Topic {
@@ -74,6 +81,8 @@ func FindByName(name string) Topic {
 func All() []Topic {
 	var topics []Topic
 	cur, err := getCollection().Find(nil, bson.D{})
+	defer cancel()
+	defer cur.Close(ctx)
 	if err != nil {
 		log.Fatalln("topic find error", err)
 	}

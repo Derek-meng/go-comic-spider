@@ -1,10 +1,12 @@
 package host
 
 import (
+	"context"
 	"github.com/Derek-meng/go-comic-spider/client/db"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"log"
+	"time"
 )
 
 const SpiderHostCollectName = "spider_host"
@@ -19,6 +21,7 @@ type Web struct {
 const OhComicCode = "OH_COMIC"
 
 func Insert() Web {
+	defer cancel()
 	collection := getCollection()
 	web := Web{
 		URL:  "https://www.ohmanhua.com/",
@@ -39,10 +42,17 @@ func Insert() Web {
 
 }
 
+var cancel context.CancelFunc
+
 func getCollection() *mongo.Collection {
-	return db.NewDB().Collection(SpiderHostCollectName)
+	var ctx context.Context
+
+	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+
+	return db.NewDB(ctx).Collection(SpiderHostCollectName)
 }
 func FindByCode() Web {
+
 	filter := Web{
 		Code: OhComicCode,
 	}
@@ -51,6 +61,7 @@ func FindByCode() Web {
 	if err := getCollection().FindOne(nil, filter).Decode(&result); err != nil {
 		log.Fatalf("decode have error %s", err)
 	}
+	defer cancel()
 	return result
 
 }

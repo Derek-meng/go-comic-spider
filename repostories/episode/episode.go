@@ -1,10 +1,12 @@
 package episode
 
 import (
+	"context"
 	"github.com/Derek-meng/go-comic-spider/client/db"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"log"
+	"time"
 )
 
 type Episode struct {
@@ -17,17 +19,25 @@ type Episode struct {
 
 const collectName = "episodes"
 
+var cancel context.CancelFunc
+
 func getCollection() *mongo.Collection {
-	return db.NewDB().Collection(collectName)
+	var ctx context.Context
+	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+
+	return db.NewDB(ctx).Collection(collectName)
 }
 
 func (e Episode) IsExistsByNameAndURL() bool {
 	err := getCollection().FindOne(nil, e).Decode(&e)
+	defer cancel()
 	return err == nil
 }
 
 func (e *Episode) Create() {
 	result, err := getCollection().InsertOne(nil, e)
+	defer cancel()
+
 	if err != nil {
 		log.Fatalf("create episode fail error %s", err)
 	}
