@@ -15,6 +15,8 @@ import (
 	"time"
 )
 
+var driver *agouti.WebDriver
+
 var optionList = []string{
 	"start-maximized",
 	"--headless",
@@ -44,9 +46,16 @@ var optionList = []string{
 	"--disable-browser-side-navigation",
 }
 
+func init() {
+	driver = agouti.ChromeDriver(agouti.ChromeOptions("args", optionList))
+	if err := driver.Start(); err != nil {
+		log.Fatal("Failed to start driver:", err)
+	}
+}
+
 func getImages(u episode.Episode, t int) ([]string, int) {
 	t++
-	page := driverPage()
+	page := newPage()
 	defer page.CloseWindow()
 	if err := page.Navigate(u.Url); err != nil {
 		return []string{}, t
@@ -78,15 +87,10 @@ func getImages(u episode.Episode, t int) ([]string, int) {
 	return images, t
 }
 
-func driverPage() *agouti.Page {
-	driver := agouti.ChromeDriver(agouti.ChromeOptions("args", optionList))
-	driver.Timeout = 600 * time.Second
-	if err := driver.Start(); err != nil {
-		log.Fatal("Failed to start driver:", err)
-	}
+func newPage() *agouti.Page {
 	page, err := driver.NewPage()
 	if err != nil {
-		log.Fatal("Failed to open page:", err)
+		log.Fatal("Failed to open newPage:", err)
 	}
 	return page
 }
@@ -126,6 +130,7 @@ func Detector(t topic.Topic) {
 					}
 					if len(images) > 0 {
 						e.Images = images
+						e.TopicId = t.Id
 						e.Create()
 					}
 					if !ok {
@@ -133,6 +138,7 @@ func Detector(t topic.Topic) {
 					}
 				}
 			}
+			driver.Stop()
 			wg.Done()
 		}()
 	}
