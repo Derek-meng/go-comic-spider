@@ -15,8 +15,6 @@ import (
 	"time"
 )
 
-var driver *agouti.WebDriver
-
 var optionList = []string{
 	"start-maximized",
 	"--headless",
@@ -46,16 +44,10 @@ var optionList = []string{
 	"--disable-browser-side-navigation",
 }
 
-func init() {
-	driver = agouti.ChromeDriver(agouti.ChromeOptions("args", optionList))
-	if err := driver.Start(); err != nil {
-		log.Fatal("Failed to start driver:", err)
-	}
-}
-
 func getImages(u episode.Episode, t int) ([]string, int) {
 	t++
-	page := newPage()
+	driver, page := newPage()
+	defer driver.Stop()
 	defer page.CloseWindow()
 	if err := page.Navigate(u.Url); err != nil {
 		return []string{}, t
@@ -87,32 +79,36 @@ func getImages(u episode.Episode, t int) ([]string, int) {
 	return images, t
 }
 
-func newPage() *agouti.Page {
-	page, err := driver.NewPage()
+func newPage() (*agouti.WebDriver, *agouti.Page) {
+	diver := newDiver()
+	page, err := diver.NewPage()
 	if err != nil {
 		log.Fatal("Failed to open newPage:", err)
 	}
-	return page
+	return diver, page
+}
+
+func newDiver() *agouti.WebDriver {
+	driver := agouti.ChromeDriver(agouti.ChromeOptions("args", optionList))
+	driver.Timeout = 10 * time.Second
+	if err := driver.Start(); err != nil {
+		log.Fatal("Failed to start driver:", err)
+	}
+	return driver
 }
 
 func Detector(t topic.Topic) {
-	host, err2 := url.Parse(t.Url)
-	if err2 != nil {
-		log.Fatalln(err2)
-	}
-	res, err := http.Get(host.String())
+	host, err := url.Parse(t.Url)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
-	defer res.Body.Close()
-	if res.StatusCode != 200 {
-		log.Fatalf("status code error: %d %s", res.StatusCode, res.Status)
-	}
-	eps := parseHtml(err, res, host)
+	response := getResponse(host)
+	defer response.Body.Close()
+
+	eps := parseHtml(response, host)
 	channel := make(chan episode.Episode, 10)
 	count := os.Getenv("CHROME_COUNT")
-	var c int
-	c, err = strconv.Atoi(count)
+	c, err := strconv.Atoi(count)
 	if err != nil {
 		log.Fatalln("env CHROME_COUNT is empty")
 	}
@@ -136,9 +132,9 @@ func Detector(t topic.Topic) {
 					if !ok {
 						break Test
 					}
+
 				}
 			}
-			driver.Stop()
 			wg.Done()
 		}()
 	}
@@ -154,7 +150,18 @@ func Detector(t topic.Topic) {
 	wg.Wait()
 }
 
-func parseHtml(err error, res *http.Response, host *url.URL) []episode.Episode {
+func getResponse(host *url.URL) *http.Response {
+	res, err := http.Get(host.String())
+	if err != nil {
+		log.Fatal(err)
+	}
+	if res.StatusCode != 200 {
+		log.Fatalf("status code error: %d %s", res.StatusCode, res.Status)
+	}
+	return res
+}
+
+func parseHtml(res *http.Response, host *url.URL) []episode.Episode {
 	doc, err := goquery.NewDocumentFromReader(res.Body)
 	if err != nil {
 		log.Fatal(err)
