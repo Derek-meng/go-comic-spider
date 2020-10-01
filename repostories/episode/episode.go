@@ -9,7 +9,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"log"
-	"time"
 )
 
 type Episode struct {
@@ -27,7 +26,7 @@ var ctx context.Context
 
 func getCollection() *mongo.Collection {
 
-	ctx, cancel = context.WithTimeout(context.TODO(), 10*time.Second)
+	ctx, cancel = context.WithCancel(context.TODO())
 
 	return db.NewDB(ctx).Collection(collectName)
 }

@@ -15,49 +15,41 @@ import (
 	"time"
 )
 
-func getImages(u string) []string {
-	optionList := []string{
-		"start-maximized",
-		"--headless",
-		"enable-automation",
-		"--window-size=1000,900",
-		"--incognito", //隐身模式
-		"--blink-settings=imagesEnabled=true",
-		"--no-default-browser-check",
-		"--ignore-ssl-errors=true",
-		"--ssl-protocol=any",
-		"--no-sandbox",
-		"--disable-breakpad",
-		"--disable-logging",
-		"--no-zygote",
-		"--allow-running-insecure-content",
-		"--disable-extensions",
-		"--disable-infobars",
-		"--disable-dev-shm-usage",
-		"--disable-cache",
-		"--disable-application-cache",
-		"--disable-offline-load-stale-cache",
-		"--disk-cache-size=0",
-		"--disable-gpu",
-		"--dns-prefetch-disable",
-		"--no-proxy-server",
-		"--silent",
-		"--disable-browser-side-navigation",
-	}
-	driver := agouti.ChromeDriver(agouti.ChromeOptions("args", optionList))
-	driver.Debug = true
-	driver.Timeout = 600 * time.Second
-	if err := driver.Start(); err != nil {
-		log.Fatal("Failed to start driver:", err)
-	}
-	page, err := driver.NewPage()
-	if err != nil {
-		log.Fatal("Failed to open page:", err)
-	}
+var optionList = []string{
+	"start-maximized",
+	"--headless",
+	"enable-automation",
+	"--window-size=1000,900",
+	"--incognito", //隐身模式
+	"--blink-settings=imagesEnabled=true",
+	"--no-default-browser-check",
+	"--ignore-ssl-errors=true",
+	"--ssl-protocol=any",
+	"--no-sandbox",
+	"--disable-breakpad",
+	"--disable-logging",
+	"--no-zygote",
+	"--allow-running-insecure-content",
+	"--disable-extensions",
+	"--disable-infobars",
+	"--disable-dev-shm-usage",
+	"--disable-cache",
+	"--disable-application-cache",
+	"--disable-offline-load-stale-cache",
+	"--disk-cache-size=0",
+	"--disable-gpu",
+	"--dns-prefetch-disable",
+	"--no-proxy-server",
+	"--silent",
+	"--disable-browser-side-navigation",
+}
+
+func getImages(u episode.Episode, t int) ([]string, int) {
+	t++
+	page := driverPage()
 	defer page.CloseWindow()
-	if err := page.Navigate(u); err != nil {
-		fmt.Println(u)
-		log.Fatal("Failed to navigate:", err)
+	if err := page.Navigate(u.Url); err != nil {
+		return []string{}, t
 	}
 	time.Sleep(100 * time.Millisecond)
 	pageClass := page.FindByID("mangalist")
@@ -83,7 +75,20 @@ func getImages(u string) []string {
 		images = append(images, attribute)
 		i++
 	}
-	return images
+	return images, t
+}
+
+func driverPage() *agouti.Page {
+	driver := agouti.ChromeDriver(agouti.ChromeOptions("args", optionList))
+	driver.Timeout = 600 * time.Second
+	if err := driver.Start(); err != nil {
+		log.Fatal("Failed to start driver:", err)
+	}
+	page, err := driver.NewPage()
+	if err != nil {
+		log.Fatal("Failed to open page:", err)
+	}
+	return page
 }
 
 func Detector(t topic.Topic) {
@@ -99,6 +104,51 @@ func Detector(t topic.Topic) {
 	if res.StatusCode != 200 {
 		log.Fatalf("status code error: %d %s", res.StatusCode, res.Status)
 	}
+	eps := parseHtml(err, res, host)
+	channel := make(chan episode.Episode, 10)
+	count := os.Getenv("CHROME_COUNT")
+	var c int
+	c, err = strconv.Atoi(count)
+	if err != nil {
+		log.Fatalln("env CHROME_COUNT is empty")
+	}
+	var wg sync.WaitGroup
+	wg.Add(c)
+	for i := 0; i < c; i++ {
+		go func() {
+		Test:
+			for {
+				select {
+				case e, ok := <-channel:
+					images, i := getImages(e, 1)
+					for len(images) == 0 && i < 3 {
+						images, i = getImages(e, i)
+					}
+					if len(images) > 0 {
+						e.Images = images
+						e.Create()
+					}
+					if !ok {
+						break Test
+					}
+				}
+			}
+			wg.Done()
+		}()
+	}
+
+	for _, ep := range eps {
+		if ep.IsExistsByNameAndURL() {
+			break
+		} else {
+			channel <- ep
+		}
+	}
+	close(channel)
+	wg.Wait()
+}
+
+func parseHtml(err error, res *http.Response, host *url.URL) []episode.Episode {
 	doc, err := goquery.NewDocumentFromReader(res.Body)
 	if err != nil {
 		log.Fatal(err)
@@ -116,40 +166,5 @@ func Detector(t topic.Topic) {
 			eps = append(eps, e)
 		}
 	})
-	channel := make(chan episode.Episode, 10)
-	var wg sync.WaitGroup
-	count := os.Getenv("CHROME_COUNT")
-	var c int
-	c, err = strconv.Atoi(count)
-	if err != nil {
-		log.Fatalln("env CHROME_COUNT is empty")
-	}
-	wg.Add(c)
-	for i := 0; i < c; i++ {
-		go func() {
-		Test:
-			for {
-				select {
-				case e := <-channel:
-					e.TopicId = t.Id
-					e.Images = getImages(e.Url)
-					e.Create()
-					wg.Done()
-				default:
-					goto Test
-				}
-			}
-		}()
-	}
-
-	for _, ep := range eps {
-		if ep.IsExistsByNameAndURL() {
-			break
-		} else {
-			wg.Add(1)
-			channel <- ep
-		}
-	}
-	close(channel)
-	wg.Wait()
+	return eps
 }
