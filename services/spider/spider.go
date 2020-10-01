@@ -97,7 +97,7 @@ func newDiver() *agouti.WebDriver {
 	return driver
 }
 
-func Detector(t topic.Topic) {
+func Detector(t topic.Topic, isBreak bool) {
 	host, err := url.Parse(t.Url)
 	if err != nil {
 		log.Fatalln(err)
@@ -120,7 +120,10 @@ func Detector(t topic.Topic) {
 			for {
 				select {
 				case e, ok := <-channel:
-					images, i := getImages(e, 1)
+					var (
+						i      = 0
+						images []string
+					)
 					for len(images) == 0 && i < 3 {
 						images, i = getImages(e, i)
 					}
@@ -141,7 +144,12 @@ func Detector(t topic.Topic) {
 
 	for _, ep := range eps {
 		if ep.IsExistsByNameAndURL() {
-			break
+			if isBreak {
+				break
+			} else {
+				continue
+			}
+
 		} else {
 			channel <- ep
 		}

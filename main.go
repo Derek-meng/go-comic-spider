@@ -1,51 +1,77 @@
 package main
 
 import (
+	"fmt"
 	"github.com/Derek-meng/go-comic-spider/repostories/topic"
 	"github.com/Derek-meng/go-comic-spider/server"
 	"github.com/Derek-meng/go-comic-spider/services/spider"
 	_ "github.com/joho/godotenv/autoload"
 	"github.com/urfave/cli"
-	_ "github.com/urfave/cli"
 	"log"
 	"os"
+	"os/exec"
 )
 
 func main() {
 	app := &cli.App{
 		Name:  "comic",
 		Usage: "spider comic ",
+		Flags: []cli.Flag{
+			cli.StringFlag{
+				Name:  "username,u",
+				Usage: "user account",
+			},
+			cli.StringFlag{
+				Name:  "password,p",
+				Usage: "user password",
+			},
+		},
 		Commands: []cli.Command{
 			{
-				Name:    "server",
-				Aliases: []string{"a"},
-				Usage:   "start run server",
+				Name:  "server",
+				Usage: "start run server",
 				Action: func(c *cli.Context) error {
-
 					server.Run()
 					return nil
 				},
 			},
 			{
-				Name:    "detect",
-				Aliases: []string{"a"},
-				Usage:   "detect comic",
+				Name:  "detect",
+				Usage: "detect comic",
 				Action: func(c *cli.Context) error {
 					for _, t := range topic.All() {
-						spider.Detector(t)
+						spider.Detector(t, true)
 					}
 					return nil
 				},
 			},
 			{
-				Name:    "touch",
-				Aliases: []string{"a"},
-				Usage:   "comic create",
+				Name:  "fill",
+				Usage: "detect comic",
+				Action: func(c *cli.Context) error {
+					for _, t := range topic.All() {
+						spider.Detector(t, false)
+					}
+					return nil
+				},
+			},
+			{
+				Name:  "touch",
+				Usage: "comic create",
 				Action: func(c *cli.Context) error {
 					topic.CreateByTitleAndUrl("元尊", "https://www.ohmanhua.com/10136/")
 					topic.CreateByTitleAndUrl("凤逆天下", "https://www.ohmanhua.com/10183/")
 					topic.CreateByTitleAndUrl("风起苍岚", "https://www.ohmanhua.com/10182/")
 					return nil
+				},
+			},
+			{
+				Name:  "kill",
+				Usage: "kill chrome",
+				Action: func(c *cli.Context) error {
+					out, err := exec.Command("sudo -S pkill -SIGINT chrome").Output()
+					fmt.Printf("combined out:\n%s\n", string(out))
+					return err
 				},
 			},
 		},
