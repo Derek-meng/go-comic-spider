@@ -4,61 +4,44 @@ import (
 	"context"
 	"fmt"
 	"github.com/Derek-meng/go-comic-spider/client/db"
+	"github.com/Derek-meng/go-comic-spider/dao/topic"
 	"github.com/Derek-meng/go-comic-spider/repostories/host"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"log"
 	"time"
 )
 
 const OhComicCode = "OH_COMIC"
 
-type Topic struct {
-	Id    primitive.ObjectID `json:"id,omitempty" bson:"_id,omitempty"`
-	WebId primitive.ObjectID `json:"web_id,omitempty" bson:"web_id,omitempty"`
-	Title string             `json:"title,omitempty" bson:"title,omitempty"`
-	Url   string             `json:"url,omitempty" bson:"url,omitempty"`
-}
-
 const CollectName = "topic"
 
-func Create() Topic {
-	topic := Topic{
-		WebId: host.FindByCode().Id,
-		Title: "元尊",
-		Url:   "https://www.ohmanhua.com/10136/",
-	}
-	insert, err := getCollection().InsertOne(nil, topic)
-	if err != nil {
-		log.Fatalf("topic insert fail err: %s", err)
-	}
-	id, ok := insert.InsertedID.(primitive.ObjectID)
-	if !ok {
-		fmt.Println(ok)
-	}
-	topic.Id = id
-	return topic
-
+type TopicRepo struct {
 }
-func Create2() Topic {
-	//凤逆天下  风起苍岚
-	//https://www.ohmanhua.com/10183/  https://www.ohmanhua.com/10182/
-	topic := Topic{
+
+func NewTopicRepo() TopicRepo {
+	return TopicRepo{}
+}
+
+func CreateByTitleAndUrl(title, url string) topic.Topic {
+	t := topic.Topic{
 		WebId: host.FindByCode().Id,
-		Title: "凤逆天下",
-		Url:   "https://www.ohmanhua.com/10183/",
+		Title: title,
+		Url:   url,
 	}
-	insert, err := getCollection().InsertOne(nil, topic)
+	insert, err := getCollection().InsertOne(nil, t)
 	if err != nil {
-		log.Fatalf("topic insert fail err: %s", err)
+		log.Fatalf("t insert fail err: %s", err)
 	}
 	id, ok := insert.InsertedID.(primitive.ObjectID)
 	if !ok {
 		fmt.Println(ok)
 	}
-	topic.Id = id
-	return topic
+	t.Id = id
+	return t
+
 }
 
 var cancel context.CancelFunc
@@ -66,20 +49,51 @@ var ctx context.Context
 
 func getCollection() *mongo.Collection {
 
-	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel = context.WithTimeout(context.TODO(), 10*time.Second)
 	return db.NewDB(ctx).Collection(CollectName)
 }
 
-func FindByName(name string) Topic {
-	var result Topic
-	if err := getCollection().FindOne(nil, Topic{Title: name}).Decode(&result); err != nil {
+func FindByName(name string) topic.Topic {
+	var result topic.Topic
+	if err := getCollection().FindOne(nil, topic.Topic{Title: name}).Decode(&result); err != nil {
 		log.Fatalf("find topic by name:%s error %s\n", name, err)
 	}
 	return result
 }
 
-func All() []Topic {
-	var topics []Topic
+func Books(page, perPage int) []topic.Topic {
+	limit := int64(perPage)
+	skip := int64(page - 1)
+	option := options.FindOptions{
+		Limit: &limit,
+		Skip:  &skip,
+	}
+
+	cur, err := getCollection().Find(nil, bson.D{}, &option)
+	if err != nil {
+		log.Fatalln("topic find error", err)
+
+	}
+	return decodeLists(cur)
+}
+
+func decodeLists(cur *mongo.Cursor) []topic.Topic {
+	var result []topic.Topic
+
+	for cur.Next(nil) {
+		var t topic.Topic
+		err := cur.Decode(&t)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		result = append(result, t)
+	}
+	return result
+}
+
+func All() []topic.Topic {
+	var topics []topic.Topic
 	cur, err := getCollection().Find(nil, bson.D{})
 	defer cancel()
 	defer cur.Close(ctx)
@@ -88,7 +102,7 @@ func All() []Topic {
 	}
 
 	for cur.Next(nil) {
-		var t Topic
+		var t topic.Topic
 		err := cur.Decode(&t)
 		if err != nil {
 			log.Fatal(err)

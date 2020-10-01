@@ -2,9 +2,12 @@ package episode
 
 import (
 	"context"
+	"fmt"
 	"github.com/Derek-meng/go-comic-spider/client/db"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"log"
 	"time"
 )
@@ -20,22 +23,27 @@ type Episode struct {
 const collectName = "episodes"
 
 var cancel context.CancelFunc
+var ctx context.Context
 
 func getCollection() *mongo.Collection {
-	var ctx context.Context
-	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+
+	ctx, cancel = context.WithTimeout(context.TODO(), 10*time.Second)
 
 	return db.NewDB(ctx).Collection(collectName)
 }
 
+func NewEpisode() Episode {
+	return Episode{}
+}
+
 func (e Episode) IsExistsByNameAndURL() bool {
-	err := getCollection().FindOne(nil, e).Decode(&e)
+	err := getCollection().FindOne(ctx, e).Decode(&e)
 	defer cancel()
 	return err == nil
 }
 
 func (e *Episode) Create() {
-	result, err := getCollection().InsertOne(nil, e)
+	result, err := getCollection().InsertOne(ctx, e)
 	defer cancel()
 
 	if err != nil {
@@ -46,4 +54,39 @@ func (e *Episode) Create() {
 	} else {
 		e.Id = id
 	}
+}
+
+func (e Episode) Get(page, perPage int64) []Episode {
+	var result []Episode
+
+	opt := options.Find()
+	opt.SetLimit(perPage).SetSkip(page).SetSort(bson.D{{"name", -1}})
+	cursor, err := getCollection().Find(ctx, e, opt)
+	defer cancel()
+	if err != nil {
+		fmt.Println(err)
+		return []Episode{}
+	}
+	for cursor.Next(ctx) {
+		var ep Episode
+		if err := cursor.Decode(&ep); err != nil {
+			log.Fatalf("find error :%+v", err)
+		}
+		result = append(result, ep)
+	}
+	return result
+}
+func (e Episode) Count() int64 {
+	count, err := getCollection().CountDocuments(ctx, e)
+	if err != nil {
+		return 0
+	}
+	return count
+}
+func (e Episode) Find() Episode {
+	var ep Episode
+	if err := getCollection().FindOne(ctx, e).Decode(&ep); err != nil {
+		return Episode{}
+	}
+	return ep
 }

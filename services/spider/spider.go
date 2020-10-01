@@ -2,23 +2,24 @@ package spider
 
 import (
 	"fmt"
+	"github.com/Derek-meng/go-comic-spider/dao/topic"
 	"github.com/Derek-meng/go-comic-spider/repostories/episode"
 	"github.com/PuerkitoBio/goquery"
 	"github.com/sclevine/agouti"
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"sync"
 	"time"
 )
 
-func getImages(u string, t int) ([]string, int) {
-	t++
+func getImages(u string) []string {
 	optionList := []string{
 		"start-maximized",
-		"enable-automation",
 		"--headless",
+		"enable-automation",
 		"--window-size=1000,900",
 		"--incognito", //隐身模式
 		"--blink-settings=imagesEnabled=true",
@@ -55,7 +56,8 @@ func getImages(u string, t int) ([]string, int) {
 	}
 	defer page.CloseWindow()
 	if err := page.Navigate(u); err != nil {
-		return []string{}, t
+		fmt.Println(u)
+		log.Fatal("Failed to navigate:", err)
 	}
 	time.Sleep(100 * time.Millisecond)
 	pageClass := page.FindByID("mangalist")
@@ -81,11 +83,11 @@ func getImages(u string, t int) ([]string, int) {
 		images = append(images, attribute)
 		i++
 	}
-	return images, t
+	return images
 }
 
-func Detector(u string) {
-	host, err2 := url.Parse(u)
+func Detector(t topic.Topic) {
+	host, err2 := url.Parse(t.Url)
 	if err2 != nil {
 		log.Fatalln(err2)
 	}
@@ -116,28 +118,24 @@ func Detector(u string) {
 	})
 	channel := make(chan episode.Episode, 10)
 	var wg sync.WaitGroup
-	wg.Add(10)
-	for i := 0; i < 10; i++ {
+	count := os.Getenv("CHROME_COUNT")
+	var c int
+	c, err = strconv.Atoi(count)
+	if err != nil {
+		log.Fatalln("env CHROME_COUNT is empty")
+	}
+	for i := 0; i < c; i++ {
 		go func() {
-			defer wg.Done()
 		Test:
 			for {
 				select {
-				case e, isContinue := <-channel:
-					if !isContinue {
-						break Test
-					}
-					var images []string
-					result := true
-					for result {
-						var i int
-						images, i = getImages(e.Url, 1)
-						if len(images) >= 0 || i > 3 {
-							result = false
-						}
-					}
-					e.Images = images
+				case e := <-channel:
+					e.TopicId = t.Id
+					e.Images = getImages(e.Url)
 					e.Create()
+					wg.Done()
+				default:
+					goto Test
 				}
 			}
 		}()
@@ -147,6 +145,7 @@ func Detector(u string) {
 		if ep.IsExistsByNameAndURL() {
 			break
 		} else {
+			wg.Add(1)
 			channel <- ep
 		}
 	}
