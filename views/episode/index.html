@@ -17,12 +17,28 @@
 </head>
 <body class="">
 <div class="container">
-    <ul class="list-group">
-        {{ range $k,$e :=.Episodes}}
-            <a class="list-group-item list-group-item-action" href="{{$e.Url}}">
-                {{$e.Name}}</a>
-        {{ end }}
-    </ul>
+    <div class="col-12 col-md-9 col-xl-8 py-md-3 pl-md-5 bd-content">
+        <ul class="list-group">
+            {{ range $k,$e :=.Episodes}}
+                <a class="list-group-item list-group-item-action" href="{{$e.Url}}">
+                    {{$e.Name}}</a>
+            {{ end }}
+        </ul>
+
+        <nav aria-label="Page navigation example">
+            <ul class="pagination">
+                {{- range $p := Iterate .PageCount}}
+                    {{$page := Page $p}}
+                    <li class="page-item  {{if IsCurrentPage $p}}active{{end}}">
+                        <a class="page-link  " href="{{$page}}" tabindex="-1">
+                            {{ $p }}
+                        </a>
+                    </li>
+                {{- end }}
+
+            </ul>
+        </nav>
+    </div>
 </div>
 
 </body>

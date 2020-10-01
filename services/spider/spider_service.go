@@ -68,7 +68,10 @@ func (s Service) getImages(u episode_dao.Episode, t int) ([]string, int) {
 }
 
 func (s Service) newPage() (*agouti.WebDriver, *agouti.Page, error) {
-	diver := s.newDiver()
+	diver, err := s.newDiver()
+	if err != nil {
+		return nil, nil, err
+	}
 	page, err := diver.NewPage()
 	if err != nil {
 		return diver, page, err
@@ -76,13 +79,13 @@ func (s Service) newPage() (*agouti.WebDriver, *agouti.Page, error) {
 	return diver, page, err
 }
 
-func (Service) newDiver() *agouti.WebDriver {
+func (Service) newDiver() (*agouti.WebDriver, error) {
 	driver := agouti.ChromeDriver(agouti.ChromeOptions("args", optionList))
 	driver.Timeout = 10 * time.Second
 	if err := driver.Start(); err != nil {
-		log.Fatal("Failed to start driver:", err)
+		return nil, err
 	}
-	return driver
+	return driver, nil
 }
 
 func (s Service) Detector(t topic.Topic, isBreak bool) {

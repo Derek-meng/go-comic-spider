@@ -20,7 +20,6 @@ func (s EpisodeServcie) GetByTopic(topicId string, page, perPage int64) []repo.E
 	e := repo.Episode{
 		TopicId: objectID,
 	}
-
 	return e.Get(page, perPage)
 }
 
