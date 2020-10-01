@@ -2,8 +2,8 @@ package spider
 
 import (
 	"fmt"
+	"github.com/Derek-meng/go-comic-spider/dao/episode_dao"
 	"github.com/Derek-meng/go-comic-spider/dao/topic"
-	"github.com/Derek-meng/go-comic-spider/repostories/episode"
 	"github.com/PuerkitoBio/goquery"
 	"github.com/sclevine/agouti"
 	"log"
@@ -15,38 +15,23 @@ import (
 	"time"
 )
 
-var optionList = []string{
-	"start-maximized",
-	"--headless",
-	"enable-automation",
-	"--window-size=1000,900",
-	"--incognito", //隐身模式
-	"--blink-settings=imagesEnabled=true",
-	"--no-default-browser-check",
-	"--ignore-ssl-errors=true",
-	"--ssl-protocol=any",
-	"--no-sandbox",
-	"--disable-breakpad",
-	"--disable-logging",
-	"--no-zygote",
-	"--allow-running-insecure-content",
-	"--disable-extensions",
-	"--disable-infobars",
-	"--disable-dev-shm-usage",
-	"--disable-cache",
-	"--disable-application-cache",
-	"--disable-offline-load-stale-cache",
-	"--disk-cache-size=0",
-	"--disable-gpu",
-	"--dns-prefetch-disable",
-	"--no-proxy-server",
-	"--silent",
-	"--disable-browser-side-navigation",
+type Repo interface {
+	Create(e episode_dao.Episode) episode_dao.Episode
+	IsExist(e episode_dao.Episode) bool
+}
+type Service struct {
+	repo Repo
 }
 
-func getImages(u episode.Episode, t int) ([]string, int) {
+func NewService(r Repo) Service {
+	return Service{
+		repo: r,
+	}
+}
+
+func (s Service) getImages(u episode_dao.Episode, t int) ([]string, int) {
 	t++
-	driver, page, err := newPage()
+	driver, page, err := s.newPage()
 	if err != nil {
 		return []string{}, t
 	}
@@ -82,8 +67,8 @@ func getImages(u episode.Episode, t int) ([]string, int) {
 	return images, t
 }
 
-func newPage() (*agouti.WebDriver, *agouti.Page, error) {
-	diver := newDiver()
+func (s Service) newPage() (*agouti.WebDriver, *agouti.Page, error) {
+	diver := s.newDiver()
 	page, err := diver.NewPage()
 	if err != nil {
 		return diver, page, err
@@ -91,7 +76,7 @@ func newPage() (*agouti.WebDriver, *agouti.Page, error) {
 	return diver, page, err
 }
 
-func newDiver() *agouti.WebDriver {
+func (Service) newDiver() *agouti.WebDriver {
 	driver := agouti.ChromeDriver(agouti.ChromeOptions("args", optionList))
 	driver.Timeout = 10 * time.Second
 	if err := driver.Start(); err != nil {
@@ -100,16 +85,16 @@ func newDiver() *agouti.WebDriver {
 	return driver
 }
 
-func Detector(t topic.Topic, isBreak bool) {
+func (s Service) Detector(t topic.Topic, isBreak bool) {
 	host, err := url.Parse(t.Url)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	response := getResponse(host)
+	response := s.getResponse(host)
 	defer response.Body.Close()
 
-	eps := parseHtml(response, host)
-	channel := make(chan episode.Episode, 10)
+	eps := s.parseHtml(response, host)
+	channel := make(chan episode_dao.Episode, 10)
 	count := os.Getenv("CHROME_COUNT")
 	c, err := strconv.Atoi(count)
 	if err != nil {
@@ -128,12 +113,12 @@ func Detector(t topic.Topic, isBreak bool) {
 						images []string
 					)
 					for len(images) == 0 && i < 3 {
-						images, i = getImages(e, i)
+						images, i = s.getImages(e, i)
 					}
 					if len(images) > 0 {
 						e.Images = images
 						e.TopicId = t.Id
-						e.Create()
+						s.repo.Create(e)
 					}
 					if !ok {
 						break Test
@@ -146,7 +131,7 @@ func Detector(t topic.Topic, isBreak bool) {
 	}
 
 	for _, ep := range eps {
-		if ep.IsExistsByNameAndURL() {
+		if s.repo.IsExist(ep) {
 			if isBreak {
 				break
 			} else {
@@ -161,7 +146,7 @@ func Detector(t topic.Topic, isBreak bool) {
 	wg.Wait()
 }
 
-func getResponse(host *url.URL) *http.Response {
+func (Service) getResponse(host *url.URL) *http.Response {
 	res, err := http.Get(host.String())
 	if err != nil {
 		log.Fatal(err)
@@ -172,18 +157,18 @@ func getResponse(host *url.URL) *http.Response {
 	return res
 }
 
-func parseHtml(res *http.Response, host *url.URL) []episode.Episode {
+func (Service) parseHtml(res *http.Response, host *url.URL) []episode_dao.Episode {
 	doc, err := goquery.NewDocumentFromReader(res.Body)
 	if err != nil {
 		log.Fatal(err)
 	}
 	class := "body > div.fed-main-info.fed-min-width > div > div.fed-tabs-info.fed-rage-foot.fed-part-rows.fed-part-layout.fed-back-whits.fed-play-data > div > div.fed-tabs-item.fed-drop-info.fed-visible > div.fed-drop-boxs.fed-drop-btms.fed-matp-v > div.fed-play-item.fed-drop-item.fed-visible > div > ul > li"
-	eps := make([]episode.Episode, 0, 100)
+	eps := make([]episode_dao.Episode, 0, 100)
 	doc.Selection.Find(class).Each(func(i int, selection *goquery.Selection) {
 		uri, exists := selection.Children().Attr("href")
 		if exists {
 			title := selection.Children().Text()
-			e := episode.Episode{
+			e := episode_dao.Episode{
 				Name: title,
 				Url:  fmt.Sprintf("%s://%s/%s", host.Scheme, host.Host, uri),
 			}

@@ -1,7 +1,10 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"github.com/Derek-meng/go-comic-spider/client/db"
+	"github.com/Derek-meng/go-comic-spider/repostories/episode_repo"
 	"github.com/Derek-meng/go-comic-spider/repostories/topic"
 	"github.com/Derek-meng/go-comic-spider/server"
 	"github.com/Derek-meng/go-comic-spider/services/spider"
@@ -39,8 +42,11 @@ func main() {
 				Name:  "detect",
 				Usage: "detect comic",
 				Action: func(c *cli.Context) error {
+					ctx, cancelFunc := context.WithCancel(context.Background())
+					defer cancelFunc()
+					s := spider.NewService(episode_repo.NewRepo(db.Instance(ctx)))
 					for _, t := range topic.All() {
-						spider.Detector(t, true)
+						s.Detector(t, true)
 					}
 					return nil
 				},
@@ -49,8 +55,11 @@ func main() {
 				Name:  "fill",
 				Usage: "detect comic",
 				Action: func(c *cli.Context) error {
+					ctx, cancelFunc := context.WithCancel(context.Background())
+					defer cancelFunc()
+					s := spider.NewService(episode_repo.NewRepo(db.Instance(ctx)))
 					for _, t := range topic.All() {
-						spider.Detector(t, false)
+						s.Detector(t, false)
 					}
 					return nil
 				},
