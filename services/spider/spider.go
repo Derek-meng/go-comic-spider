@@ -124,6 +124,7 @@ func Detector(t topic.Topic) {
 	if err != nil {
 		log.Fatalln("env CHROME_COUNT is empty")
 	}
+	wg.Add(c)
 	for i := 0; i < c; i++ {
 		go func() {
 		Test:
